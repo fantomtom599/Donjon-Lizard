@@ -1,8 +1,11 @@
-"""Interface graphique Tkinter pour Donjon & Lezard."""
+"""Interface graphique Tkinter
+Fichier à lancer pour lancer le jeu 
+A faire evoluer 
+"""
 
 import random
 import tkinter as tk
-from tkinter import ttk
+import customtkinter as ctk  # type: ignore[reportMissingImports]
 
 from classes import Archer, Paladin, Sorcier
 from combat import choisir_attaque_bot
@@ -22,7 +25,7 @@ def _creer_personnage(classe_nom: str, nom: str):
 
 
 class JeuGUI:
-    def __init__(self, root: tk.Tk):
+    def __init__(self, root: ctk.CTk):
         self.root = root
         self.root.title("Donjon & Lezard")
         self.root.geometry("820x560")
@@ -41,44 +44,47 @@ class JeuGUI:
         self._construire_ui()
 
     def _construire_ui(self):
-        top = ttk.LabelFrame(self.root, text="Configuration")
+        top = ctk.CTkFrame(self.root)
         top.pack(fill="x", padx=10, pady=10)
+        ctk.CTkLabel(top, text="Configuration").grid(row=0, column=0, columnspan=7, padx=6, pady=(6, 2), sticky="w")
 
-        ttk.Label(top, text="Mode").grid(row=0, column=0, padx=6, pady=6, sticky="w")
-        ttk.Combobox(top, textvariable=self.mode_var, values=["Solo", "Multi"], width=10, state="readonly").grid(
-            row=0, column=1, padx=6, pady=6, sticky="w"
+        ctk.CTkLabel(top, text="Mode").grid(row=1, column=0, padx=6, pady=6, sticky="w")
+        ctk.CTkComboBox(top, variable=self.mode_var, values=["Solo", "Multi"], width=120).grid(
+            row=1, column=1, padx=6, pady=6, sticky="w"
         )
 
-        ttk.Label(top, text="Nom J1").grid(row=0, column=2, padx=6, pady=6, sticky="w")
-        ttk.Entry(top, textvariable=self.nom1_var, width=14).grid(row=0, column=3, padx=6, pady=6)
-        ttk.Label(top, text="Classe J1").grid(row=0, column=4, padx=6, pady=6, sticky="w")
-        ttk.Combobox(top, textvariable=self.classe1_var, values=["Sorcier", "Paladin", "Archer"], width=10, state="readonly").grid(
-            row=0, column=5, padx=6, pady=6
-        )
-
-        ttk.Label(top, text="Nom J2").grid(row=1, column=2, padx=6, pady=6, sticky="w")
-        ttk.Entry(top, textvariable=self.nom2_var, width=14).grid(row=1, column=3, padx=6, pady=6)
-        ttk.Label(top, text="Classe J2").grid(row=1, column=4, padx=6, pady=6, sticky="w")
-        ttk.Combobox(top, textvariable=self.classe2_var, values=["Sorcier", "Paladin", "Archer"], width=10, state="readonly").grid(
+        ctk.CTkLabel(top, text="Nom J1").grid(row=1, column=2, padx=6, pady=6, sticky="w")
+        ctk.CTkEntry(top, textvariable=self.nom1_var, width=140).grid(row=1, column=3, padx=6, pady=6)
+        ctk.CTkLabel(top, text="Classe J1").grid(row=1, column=4, padx=6, pady=6, sticky="w")
+        ctk.CTkComboBox(top, variable=self.classe1_var, values=["Sorcier", "Paladin", "Archer"], width=120).grid(
             row=1, column=5, padx=6, pady=6
         )
 
-        ttk.Button(top, text="Nouvelle partie", command=self.demarrer_partie).grid(row=0, column=6, rowspan=2, padx=10, pady=6)
+        ctk.CTkLabel(top, text="Nom J2").grid(row=2, column=2, padx=6, pady=6, sticky="w")
+        ctk.CTkEntry(top, textvariable=self.nom2_var, width=140).grid(row=2, column=3, padx=6, pady=6)
+        ctk.CTkLabel(top, text="Classe J2").grid(row=2, column=4, padx=6, pady=6, sticky="w")
+        ctk.CTkComboBox(top, variable=self.classe2_var, values=["Sorcier", "Paladin", "Archer"], width=120).grid(
+            row=2, column=5, padx=6, pady=6
+        )
 
-        info = ttk.Frame(self.root)
+        ctk.CTkButton(top, text="Nouvelle partie", command=self.demarrer_partie).grid(row=1, column=6, rowspan=2, padx=10, pady=6)
+
+        info = ctk.CTkFrame(self.root)
         info.pack(fill="x", padx=10, pady=4)
 
-        self.label_pv_j1 = ttk.Label(info, text="J1: -")
+        self.label_pv_j1 = ctk.CTkLabel(info, text="J1: -")
         self.label_pv_j1.pack(side="left", padx=8)
-        self.label_pv_j2 = ttk.Label(info, text="J2: -")
+        self.label_pv_j2 = ctk.CTkLabel(info, text="J2: -")
         self.label_pv_j2.pack(side="left", padx=8)
-        self.label_tour = ttk.Label(info, text="Tour: -")
+        self.label_tour = ctk.CTkLabel(info, text="Tour: -")
         self.label_tour.pack(side="right", padx=8)
 
-        self.frame_attaques = ttk.LabelFrame(self.root, text="Actions du joueur actif")
+        self.frame_attaques = ctk.CTkFrame(self.root)
         self.frame_attaques.pack(fill="x", padx=10, pady=8)
+        ctk.CTkLabel(self.frame_attaques, text="Actions du joueur actif").pack(anchor="w", padx=8, pady=(6, 2))
 
-        self.log = tk.Text(self.root, height=18, wrap="word", state="disabled")
+        self.log = ctk.CTkTextbox(self.root, height=320)
+        self.log.configure(state="disabled")
         self.log.pack(fill="both", expand=True, padx=10, pady=10)
 
         self._log("Bienvenue ! Choisis la config puis clique sur 'Nouvelle partie'.")
@@ -131,15 +137,15 @@ class JeuGUI:
         actif, _ = self._personnages_actifs()
         solo_bot = self.mode_var.get() == "Solo"
         if solo_bot and actif is self.j2:
-            ttk.Label(self.frame_attaques, text="Le bot joue...").pack(anchor="w", padx=8, pady=8)
+            ctk.CTkLabel(self.frame_attaques, text="Le bot joue...").pack(anchor="w", padx=8, pady=8)
             self.root.after(700, self._tour_bot)
             return
 
-        ttk.Label(self.frame_attaques, text=f"Choisis l'action pour {actif.nom}:").pack(anchor="w", padx=8, pady=6)
+        ctk.CTkLabel(self.frame_attaques, text=f"Choisis l'action pour {actif.nom}:").pack(anchor="w", padx=8, pady=6)
         for idx, att in enumerate(actif.attaques):
             details = self._description_attaque(att)
             texte = f"{idx + 1}. {att['nom']} ({details})"
-            ttk.Button(
+            ctk.CTkButton(
                 self.frame_attaques,
                 text=texte,
                 command=lambda i=idx: self._jouer_action(i),
@@ -234,7 +240,9 @@ class JeuGUI:
 
 
 def main():
-    root = tk.Tk()
+    ctk.set_appearance_mode("dark")
+    ctk.set_default_color_theme("blue")
+    root = ctk.CTk()
     JeuGUI(root)
     root.mainloop()
 
