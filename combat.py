@@ -12,14 +12,19 @@ def choisir_attaque_bot(personnage, adversaire) -> int:
     - sinon choisit le meilleur dégât "attendu" (valeur * précision)
     """
     # Si on est sous 40%, on cherche un heal
+    disponibles = [i for i in range(len(personnage.attaques)) if personnage.attaque_disponible(i)]
+    if not disponibles:
+        return 0
+
     if personnage.pv <= int(personnage.pv_max * 0.4):
-        heals = [i for i, a in enumerate(personnage.attaques) if a.get("type") == "heal"]
+        heals = [i for i in disponibles if personnage.attaques[i].get("type") == "heal"]
         if heals:
             return heals[0]
 
     meilleur_index = 0
     meilleur_score = -1.0
-    for i, att in enumerate(personnage.attaques):
+    for i in disponibles:
+        att = personnage.attaques[i]
         t = att.get("type")
         if t == "damage":
             score = float(att.get("valeur", 0)) * float(att.get("precision", 1.0))
@@ -40,6 +45,15 @@ def _touche(precision: float) -> bool:
     return random.random() < max(0.0, min(1.0, float(precision)))
 
 
+def _degats_critiques(att: dict) -> tuple[int, bool]:
+    degats = int(att.get("valeur", 0))
+    crit_chance = float(att.get("crit_chance", 0.0))
+    crit_mult = float(att.get("crit_mult", 1.5))
+    if crit_chance > 0 and random.random() < max(0.0, min(1.0, crit_chance)):
+        return int(round(degats * max(1.0, crit_mult))), True
+    return degats, False
+
+
 def duel(joueur_a, joueur_b, bot_b: bool = False):
     """
     Combat jusqu'à ce qu'un personnage tombe à 0 PV.
@@ -48,6 +62,7 @@ def duel(joueur_a, joueur_b, bot_b: bool = False):
     actif, passif = joueur_a, joueur_b
 
     while actif.est_vivant() and passif.est_vivant():
+        actif.reduire_cooldowns()
         print("\n--- Tour ---")
         afficher_barre_pv(joueur_a)
         afficher_barre_pv(joueur_b)
@@ -63,18 +78,27 @@ def duel(joueur_a, joueur_b, bot_b: bool = False):
                 infos = f"{att['valeur']} dégâts + soin, {int(att['precision'] * 100)}% précision"
             else:
                 infos = "effet (buff)"
+            if att.get("cooldown", 0):
+                infos += f", CD {att['cooldown']}"
+            cd_restant = actif.cooldown_restant(i)
+            if cd_restant > 0:
+                infos += f" [recharge: {cd_restant}]"
             print(f"  {i + 1}. {att['nom']} ({infos})")
 
         if bot_b and actif is joueur_b:
             index = choisir_attaque_bot(actif, passif)
             print(f"(Bot) Choix: {index + 1}")
         else:
-            choix = demander_entier(
-                "Numéro de l'attaque : ",
-                1,
-                len(actif.attaques),
-            )
-            index = choix - 1
+            while True:
+                choix = demander_entier(
+                    "Numéro de l'attaque : ",
+                    1,
+                    len(actif.attaques),
+                )
+                index = choix - 1
+                if actif.attaque_disponible(index):
+                    break
+                print(f"Attaque en recharge ({actif.cooldown_restant(index)} tour(s) restant(s)).")
 
         att = actif.attaque(index)
         nom_att = att["nom"]
@@ -87,9 +111,12 @@ def duel(joueur_a, joueur_b, bot_b: bool = False):
                 continue
 
         if type_att == "damage":
-            degats = passif.subir_degats(int(att["valeur"]))
+            degats_bruts, crit = _degats_critiques(att)
+            degats = passif.subir_degats(degats_bruts)
             if degats == 0:
                 print(f"{actif.nom} utilise {nom_att} → bloqué !")
+            elif crit:
+                print(f"{actif.nom} utilise {nom_att} → CRITIQUE ! {degats} dégâts !")
             else:
                 print(f"{actif.nom} utilise {nom_att} → {degats} dégâts !")
         elif type_att == "heal":
@@ -97,9 +124,13 @@ def duel(joueur_a, joueur_b, bot_b: bool = False):
             print(f"{actif.nom} utilise {nom_att} → +{soin} PV !")
 
         elif type_att == "stealing_life":
-            degats = passif.subir_degats(int(att["valeur"]))
+            degats_bruts, crit = _degats_critiques(att)
+            degats = passif.subir_degats(degats_bruts)
             soin = actif.soigner(degats)
-            print(f"{actif.nom} utilise {nom_att} → {degats} dégâts et +{soin} PV !")
+            if crit and degats > 0:
+                print(f"{actif.nom} utilise {nom_att} → CRITIQUE ! {degats} dégâts et +{soin} PV !")
+            else:
+                print(f"{actif.nom} utilise {nom_att} → {degats} dégâts et +{soin} PV !")
 
         elif type_att == "buff":
             effet = att.get("effet", {})
@@ -114,6 +145,7 @@ def duel(joueur_a, joueur_b, bot_b: bool = False):
         else:
             print(f"{actif.nom} hésite… (attaque inconnue)")
 
+        actif.demarrer_cooldown(index)
         actif, passif = passif, actif
 
     gagnant = joueur_a if joueur_a.est_vivant() else joueur_b

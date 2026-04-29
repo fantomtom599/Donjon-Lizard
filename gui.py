@@ -22,6 +22,15 @@ def _touche(precision: float) -> bool:
     return random.random() < max(0.0, min(1.0, float(precision)))
 
 
+def _degats_critiques(att: dict) -> tuple[int, bool]:
+    degats = int(att.get("valeur", 0))
+    crit_chance = float(att.get("crit_chance", 0.0))
+    crit_mult = float(att.get("crit_mult", 1.5))
+    if crit_chance > 0 and random.random() < max(0.0, min(1.0, crit_chance)):
+        return int(round(degats * max(1.0, crit_mult))), True
+    return degats, False
+
+
 def _creer_personnage(classe_nom: str, nom: str):
     mapping = {
         "Sorcier": Sorcier,
@@ -153,21 +162,33 @@ class JeuGUI:
         ctk.CTkLabel(self.frame_attaques, text=f"Choisis l'action pour {actif.nom}:").pack(anchor="w", padx=8, pady=6)
         for idx, att in enumerate(actif.attaques):
             details = self._description_attaque(att)
+            if att.get("cooldown", 0):
+                details += f", CD {att['cooldown']}"
+            cd_restant = actif.cooldown_restant(idx)
             texte = f"{idx + 1}. {att['nom']} ({details})"
+            if cd_restant > 0:
+                texte += f" [recharge: {cd_restant}]"
             ctk.CTkButton(
                 self.frame_attaques,
                 text=texte,
                 command=lambda i=idx: self._jouer_action(i),
+                state="disabled" if cd_restant > 0 else "normal",
             ).pack(fill="x", padx=8, pady=3)
 
     def _description_attaque(self, att: dict) -> str:
         t = att.get("type")
         if t == "damage":
-            return f"{att['valeur']} degats, {int(att['precision'] * 100)}% precision"
+            base = f"{att['valeur']} degats, {int(att['precision'] * 100)}% precision"
+            if att.get("crit_chance", 0):
+                base += f", crit {int(att['crit_chance'] * 100)}%"
+            return base
         if t == "heal":
             return f"{att['valeur']} soin, {int(att['precision'] * 100)}% precision"
         if t == "stealing_life":
-            return f"{att['valeur']} degats + soin, {int(att['precision'] * 100)}% precision"
+            base = f"{att['valeur']} degats + soin, {int(att['precision'] * 100)}% precision"
+            if att.get("crit_chance", 0):
+                base += f", crit {int(att['crit_chance'] * 100)}%"
+            return base
         if t == "buff":
             effet = att.get("effet", {})
             if "bouclier_pct" in effet:
@@ -180,8 +201,16 @@ class JeuGUI:
         if self.partie_terminee:
             return
         actif, passif = self._personnages_actifs()
+        actif.reduire_cooldowns()
+        if not actif.attaque_disponible(index):
+            att = actif.attaque(index)
+            self._log(f"{att['nom']} est en recharge ({actif.cooldown_restant(index)} tour(s)).")
+            self._rafraichir_ui()
+            self._maj_boutons_actions()
+            return
         att = actif.attaque(index)
         self._executer_action(actif, passif, att)
+        actif.demarrer_cooldown(index)
 
         if self._verifier_fin_partie():
             return
@@ -194,12 +223,20 @@ class JeuGUI:
         if self.partie_terminee:
             return
         actif, passif = self._personnages_actifs()
+        actif.reduire_cooldowns()
         if self.mode_var.get() != "Solo" or actif is not self.j2:
             return
         index = choisir_attaque_bot(actif, passif)
+        if not actif.attaque_disponible(index):
+            self._log("(Bot) passe son tour (attaques en recharge).")
+            self.tour_j1 = not self.tour_j1
+            self._rafraichir_ui()
+            self._maj_boutons_actions()
+            return
         att = actif.attaque(index)
         self._log(f"(Bot) choisit: {att['nom']}")
         self._executer_action(actif, passif, att)
+        actif.demarrer_cooldown(index)
 
         if self._verifier_fin_partie():
             return
@@ -218,19 +255,25 @@ class JeuGUI:
             return
 
         if type_att == "damage":
-            degats = passif.subir_degats(int(att["valeur"]))
+            degats_bruts, crit = _degats_critiques(att)
+            degats = passif.subir_degats(degats_bruts)
             if degats == 0:
                 self._log(f"{actif.nom} utilise {nom_att} -> bloque.")
+            elif crit:
+                self._log(f"{actif.nom} utilise {nom_att} -> CRITIQUE ! {degats} degats.")
             else:
                 self._log(f"{actif.nom} utilise {nom_att} -> {degats} degats.")
         elif type_att == "heal":
             soin = actif.soigner(int(att["valeur"]))
             self._log(f"{actif.nom} utilise {nom_att} -> +{soin} PV.")
         elif type_att == "stealing_life":
-            degats = passif.subir_degats(int(att["valeur"]))
+            degats_bruts, crit = _degats_critiques(att)
+            degats = passif.subir_degats(degats_bruts)
             soin = actif.soigner(degats)
             if degats == 0:
                 self._log(f"{actif.nom} utilise {nom_att} -> bloque, +0 PV.")
+            elif crit:
+                self._log(f"{actif.nom} utilise {nom_att} -> CRITIQUE ! {degats} degats et +{soin} PV.")
             else:
                 self._log(f"{actif.nom} utilise {nom_att} -> {degats} degats et +{soin} PV.")
         elif type_att == "buff":
