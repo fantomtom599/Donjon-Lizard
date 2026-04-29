@@ -1,2 +1,2 @@
 Lunch file : gui.py 
-(Python guy.py)
+(Python gui.py)
