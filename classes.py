@@ -7,8 +7,8 @@ class Personnage:
 
     Modèle d'attaque (dict):
     - nom (str)
-    - type: "damage" | "heal" | "buff"
-    - valeur (int) : dégâts ou soin
+    - type: "damage" | "heal" | "buff" | "stealing_life"
+    - valeur (int) : dégâts, soin, vol de vie, blocage
     - precision (float 0..1) : chance de toucher (pour damage/heal)
     - effet (dict) : pour buff (ex: bouclier/blocage)
     """
@@ -104,5 +104,18 @@ class Archer(Personnage):
                 {"nom": "Tir précis", "type": "damage", "valeur": 14, "precision": 0.90},
                 {"nom": "Tir puissant", "type": "damage", "valeur": 30, "precision": 0.45},
                 {"nom": "Bandage", "type": "heal", "valeur": 14, "precision": 0.95},
+            ],
+        )
+
+
+class Goblin(Personnage):
+    def __init__(self, nom: str):
+        super().__init__(
+            nom,
+            pv_max=60,
+            attaques=[
+                {"nom": "Vol de vie", "type": "stealing_life", "valeur": 14, "precision": 0.90},
+                {"nom": "Coup de poignard", "type": "damage", "valeur": 30, "precision": 0.45},
+                {"nom": "Soin mineur", "type": "heal", "valeur": 14, "precision": 0.95},
             ],
         )

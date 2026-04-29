@@ -1,13 +1,20 @@
 """Interface graphique Tkinter
 Fichier à lancer pour lancer le jeu 
-A faire evoluer 
+TODO : 
+- Ajouter des classes (gobelin...) 
+- faire evoluer l'interface (btn pour selection d'une classe, description de la classe...)
+: possible changement d'écran ? 
+Si oui : 
+- 1 ecran acceuil 
+- 1 ecran selection de classe 
+- 1 ecran de combat 
 """
 
 import random
 import tkinter as tk
 import customtkinter as ctk  # type: ignore[reportMissingImports]
 
-from classes import Archer, Paladin, Sorcier
+from classes import Archer, Goblin, Paladin, Sorcier
 from combat import choisir_attaque_bot
 
 
@@ -20,6 +27,8 @@ def _creer_personnage(classe_nom: str, nom: str):
         "Sorcier": Sorcier,
         "Paladin": Paladin,
         "Archer": Archer,
+        "Goblin": Goblin,
+
     }
     return mapping[classe_nom](nom)
 
@@ -56,14 +65,14 @@ class JeuGUI:
         ctk.CTkLabel(top, text="Nom J1").grid(row=1, column=2, padx=6, pady=6, sticky="w")
         ctk.CTkEntry(top, textvariable=self.nom1_var, width=140).grid(row=1, column=3, padx=6, pady=6)
         ctk.CTkLabel(top, text="Classe J1").grid(row=1, column=4, padx=6, pady=6, sticky="w")
-        ctk.CTkComboBox(top, variable=self.classe1_var, values=["Sorcier", "Paladin", "Archer"], width=120).grid(
+        ctk.CTkComboBox(top, variable=self.classe1_var, values=["Sorcier", "Paladin", "Archer", "Goblin"], width=120).grid(
             row=1, column=5, padx=6, pady=6
         )
 
         ctk.CTkLabel(top, text="Nom J2").grid(row=2, column=2, padx=6, pady=6, sticky="w")
         ctk.CTkEntry(top, textvariable=self.nom2_var, width=140).grid(row=2, column=3, padx=6, pady=6)
         ctk.CTkLabel(top, text="Classe J2").grid(row=2, column=4, padx=6, pady=6, sticky="w")
-        ctk.CTkComboBox(top, variable=self.classe2_var, values=["Sorcier", "Paladin", "Archer"], width=120).grid(
+        ctk.CTkComboBox(top, variable=self.classe2_var, values=["Sorcier", "Paladin", "Archer", "Goblin"], width=120).grid(
             row=2, column=5, padx=6, pady=6
         )
 
@@ -157,6 +166,8 @@ class JeuGUI:
             return f"{att['valeur']} degats, {int(att['precision'] * 100)}% precision"
         if t == "heal":
             return f"{att['valeur']} soin, {int(att['precision'] * 100)}% precision"
+        if t == "stealing_life":
+            return f"{att['valeur']} degats + soin, {int(att['precision'] * 100)}% precision"
         if t == "buff":
             effet = att.get("effet", {})
             if "bouclier_pct" in effet:
@@ -201,7 +212,7 @@ class JeuGUI:
         nom_att = att["nom"]
         type_att = att.get("type")
 
-        if type_att in ("damage", "heal") and not _touche(att.get("precision", 1.0)):
+        if type_att in ("damage", "heal", "stealing_life") and not _touche(att.get("precision", 1.0)):
             self._log(f"{actif.nom} utilise {nom_att}... mais ca rate.")
             self._rafraichir_ui()
             return
@@ -215,6 +226,13 @@ class JeuGUI:
         elif type_att == "heal":
             soin = actif.soigner(int(att["valeur"]))
             self._log(f"{actif.nom} utilise {nom_att} -> +{soin} PV.")
+        elif type_att == "stealing_life":
+            degats = passif.subir_degats(int(att["valeur"]))
+            soin = actif.soigner(degats)
+            if degats == 0:
+                self._log(f"{actif.nom} utilise {nom_att} -> bloque, +0 PV.")
+            else:
+                self._log(f"{actif.nom} utilise {nom_att} -> {degats} degats et +{soin} PV.")
         elif type_att == "buff":
             effet = att.get("effet", {})
             if "bouclier_pct" in effet and "bouclier_tours" in effet:

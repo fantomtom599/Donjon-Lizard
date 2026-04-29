@@ -23,6 +23,9 @@ def choisir_attaque_bot(personnage, adversaire) -> int:
         t = att.get("type")
         if t == "damage":
             score = float(att.get("valeur", 0)) * float(att.get("precision", 1.0))
+        elif t == "stealing_life":
+            # Slightly favor lifesteal over pure damage for sustain.
+            score = float(att.get("valeur", 0)) * float(att.get("precision", 1.0)) + 2.0
         elif t == "buff":
             score = 1.0  # valeur fixe faible
         else:  # heal
@@ -56,6 +59,8 @@ def duel(joueur_a, joueur_b, bot_b: bool = False):
                 infos = f"{att['valeur']} dégâts, {int(att['precision'] * 100)}% précision"
             elif t == "heal":
                 infos = f"{att['valeur']} soin, {int(att['precision'] * 100)}% précision"
+            elif t == "stealing_life":
+                infos = f"{att['valeur']} dégâts + soin, {int(att['precision'] * 100)}% précision"
             else:
                 infos = "effet (buff)"
             print(f"  {i + 1}. {att['nom']} ({infos})")
@@ -75,7 +80,7 @@ def duel(joueur_a, joueur_b, bot_b: bool = False):
         nom_att = att["nom"]
         type_att = att.get("type")
 
-        if type_att in ("damage", "heal"):
+        if type_att in ("damage", "heal", "stealing_life"):
             if not _touche(att.get("precision", 1.0)):
                 print(f"{actif.nom} utilise {nom_att}… mais ça rate !")
                 actif, passif = passif, actif
@@ -90,6 +95,12 @@ def duel(joueur_a, joueur_b, bot_b: bool = False):
         elif type_att == "heal":
             soin = actif.soigner(int(att["valeur"]))
             print(f"{actif.nom} utilise {nom_att} → +{soin} PV !")
+
+        elif type_att == "stealing_life":
+            degats = passif.subir_degats(int(att["valeur"]))
+            soin = actif.soigner(degats)
+            print(f"{actif.nom} utilise {nom_att} → {degats} dégâts et +{soin} PV !")
+
         elif type_att == "buff":
             effet = att.get("effet", {})
             if "bouclier_pct" in effet and "bouclier_tours" in effet:
